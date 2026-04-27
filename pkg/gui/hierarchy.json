@@ -1,0 +1,508 @@
+{
+    "Lahore": {
+        "Cantonment": [],
+        "City": [],
+        "Model Town": [],
+        "Raiwind": [
+            "352401 | GOVT. ASSOCIATE COLLEGE (W), MANGA MANDI, LAHORE"
+        ],
+        "Shalimar": [],
+        "Lahore Cantt": [
+            "352224 | GOVT. ISLAMIA ASSOCIATE COLLEGE, LAHORE CANTT, LAHORE"
+        ],
+        "Lahore": [
+            "352225 | GOVT. ASSOCIATE COLLEGE (W), MUSTAFAABAD, LAHORE",
+            "352117 | GOVT. ASSOCIATE COLLEGE (W), BILAL GANJ, LAHORE",
+            "352260 | GOVT. ASSOCIATE COLLEGE (W), HAIR, BEDIAN, LAHORE",
+            "352248 | GOVT. ASSOCIATE COLLEGE, (W), SALAMATPURA, LAHORE",
+            "352250 | GOVT. KHAWAJA RAFIQUE SHAHEED ASSOCIATE COLLEGE, WALTON ROAD, LAHORE",
+            "352266 | GOVT. ASSOCIATE COLLEGE, KAHNA NAU, LAHORE",
+            "352249 | GOVT. ASSOCIATE COLLEGE, SHALIMAR TOWN, LAHORE",
+            "352105 | GOVT. ASSOCIATE COLLEGE, RAIWIND, LAHORE",
+            "352265 | GOVT. ASSOCIATE COLLEGE, BEDIAN ROAD, LAHORE",
+            "352258 | GOVT. ASSOCIATE COLLEGE (W), CHUNG, LAHORE",
+            "352116 | GOVT. ASSOCIATE COLLEGE (W), BUND ROAD, LAHORE",
+            "352241 | GOVT. GRADUATE COLLEGE (W), SHAHDARA, LAHORE",
+            "352229 | GOVT. AYESHA ASSOCIATE COLLEGE (W), TIMBER MARKET, RAVI ROAD, LAHORE",
+            "352230 | GOVT. GRADUATE COLLEGE (W), SHAD BAGH, LAHORE",
+            "352240 | GOVT. GRADUATE COLLEGE (W), GULSHAN RAVI, LAHORE"
+        ]
+    },
+    "Kasur": {
+        "Chunian": [
+            "351211 | GOVT. ASSOCIATE COLLEGE (W), CHANGA MANGA, KASUR",
+            "351105 | GOVT. ASSOCIATE COLLEGE (W), ELLAHBAD, KASUR"
+        ],
+        "Kasur": [
+            "351207 | GOVT. SYED CHARAGH SHAH ASSOCIATE COLLEGE (W), KOT MURAD KHAN, KASUR",
+            "351103 | GOVT. ASSOCIATE COLLEGE OF COMMERCE, CHUNIAN, KASUR",
+            "351204 | GOVT. GRADUATE COLLEGE (W), KASUR"
+        ],
+        "Kot Radha Kishan": [],
+        "Pattoki": [
+            "351304 | GOVT. GRADUATE COLLEGE (W), PHOOL NAGAR, KASUR",
+            "351303 | GOVT. GRADUATE COLLEGE (W), PATTOKI, KASUR"
+        ]
+    },
+    "Sheikhupura": {
+        "Ferozewala": [
+            "354501 | GOVT. ASSOCIATE COLLEGE (W), SAFDARABAD, SHEIKHUPURA",
+            "354102 | GOVT. GRADUATE COLLEGE (W), VANDALA DIYAL SHAH, FEROZWALA, SHEIKHUPURA"
+        ],
+        "Muridke": [
+            "354201 | GOVT. ASSOCIATE COLLEGE, NARANG MANDI, SHEIKHUPURA",
+            "354203 | GOVT. ASSOCIATE COLLEGE (W), NARANG MANDI, SHEIKHUPURA"
+        ],
+        "Safdarabad": [
+            "354502 | GOVT. ASSOCIATE COLLEGE, SAFDARABAD, SHEIKHUPURA"
+        ],
+        "Sheikhupura": [],
+        "Sharakpura": []
+    },
+    "Nankana Sahib": {
+        "Nankana Sahib": [
+            "356102 | GOVT. GURU NANAK GRADUATE COLLEGE (W), NANKANA SAHIB"
+        ],
+        "Sangla Hill": [],
+        "Shah Kot": []
+    },
+    "Gujrat": {
+        "Gujrat": [
+            "342123 | GOVT. ASSOCIATE COLLEGE (W), MARGHZAR COLONY, GUJRAT",
+            "342112 | GOVT. FATIMA JINNAH ASSOCIATE COLLEGE (W), FAWARA CHOWK, GUJRAT",
+            "342121 | GOVT. ASSOCIATE COLLEGE, G.T. ROAD, GUJRAT",
+            "342104 | GOVT. ASSOCIATE COLLEGE, KARIANWALA, GUJRAT"
+        ],
+        "Kharian": [],
+        "Sarai Alamgir": [],
+        "Jalalpur Jattan": [],
+        "Kunja": []
+    },
+    "Mandi Bahauddin": {
+        "Malakwal": [],
+        "Mandi Bahauddin": [],
+        "Phalia": []
+    },
+    "Hafizabad": {
+        "Hafizabad": [
+            "345203 | GOVT. ASSOCIATE COLLEGE JALALPUR BHATTIAN, HAFIZABAD",
+            "345103 | GOVT. ASSOCIATE COLLEGE (W), JALALPUR BHATTIAN, HAFIZABAD",
+            "345202 | GOVT. ISLAMIA GRADUATE COLLEGE (W), HAFIZABAD"
+        ],
+        "Pindi Bhattian": []
+    },
+    "Wazirabad": {
+        "Wazirabad": [],
+        "Alipur Chatta": []
+    },
+    "Gujranwala": {
+        "Gujranwala City": [],
+        "Gujranwala Saddar": [],
+        "Kamoke": [
+            "341302 | GOVT. GRADUATE COLLEGE (W), KAMOKE, GUJRANWALA"
+        ],
+        "Nowshera": [],
+        "Gujranwala": [
+            "341112 | GOVT. ASSOCIATE COLLEGE (W), COLLEGE, ROAD, GUJRANWALA",
+            "341115 | GOVT. ASSOCIATE COLLEGE OF COMMERCE, N. ROAD, GUJRANWALA",
+            "341119 | GOVT. ASSOCIATE COLLEGE, GAKHAR MANDI, GUJRANWALA",
+            "341206 | GOVT. ASSOCIATE COLLEGE (W), WAZIRABAD CITY, GUJRANWALA",
+            "341122 | GOVT. ASSOCIATE COLLEGE (W), GAKHAR MANDI, GUJRANWALA",
+            "341124 | GOVT. ASSOCIATE COLLEGE, RAHWALI, GUJRANWALA",
+            "341109 | GOVT. GRADUATE COLLEGE (W), QILA DIDAR SINGH, GUJRANWALA"
+        ]
+    },
+    "Narowal": {
+        "Narowal": [
+            "344108 | GOVT. ZAINAB BIBI HAMEED ASSOCIATE COLLEGE (W), TALWANDI BHINDRAN, NAROWAL"
+        ],
+        "Shakargarh": [
+            "344202 | GOVT. ASSOCIATE COLLEGE (W), SHAKARGARH, NAROWAL",
+            "344204 | GOVT. ASSOCIATE COLLEGE (W), KANJROOR, SHAKARGARH, NAROWAL"
+        ],
+        "Zafarwal": [
+            "344106 | GOVT. ASSOCIATE COLLEGE (W), ZAFARWAL, NAROWAL"
+        ]
+    },
+    "Sialkot": {
+        "Daska": [],
+        "Pasrur": [
+            "343204 | GOVT. ASSOCIATE COLLEGE, CHAWINDA, SIALKOT"
+        ],
+        "Sambrial": [
+            "343308 | GOVT. GRADUATE COLLEGE (W), SAMBRIAL, SIALKOT"
+        ],
+        "Sialkot": []
+    },
+    "Faisalabad": {
+        "Chak Jhumra": [],
+        "Faisalabad": [
+            "331403 | GOVT. ASSOCIATE COLLEGE (W), 117/JB, MILLAT ROAD, FAISALABAD",
+            "331107 | GOVT. MILLAT GRADUATE COLLEGE, GHULAM MUHAMMADABAD, FAISALABAD",
+            "331110 | GOVT. GRADUATE COLLEGE (W), GULISTAN COLONY, FAISALABAD"
+        ],
+        "Faisalabad Saddar": [],
+        "Jaranwala": [
+            "331118 | GOVT. GRADUATE COLLEGE, 266/RB, KHURRIANWALA, FAISALABAD"
+        ],
+        "Samundri": [],
+        "Tandlianwala": [
+            "331602 | GOVT. ASSOCIATE COLLEGE (W), TANDLIANWALA, FAISALABAD"
+        ]
+    },
+    "Jhang": {
+        "Jhang": [
+            "332203 | GOVT. GRADUATE COLLEGE, GOJRA ROAD, JHANG",
+            "332207 | GOVT. GRADUATE COLLEGE (W), JHANG CITY, JHANG",
+            "332204 | GOVT. GRADUATE COLLEGE (W), SADDAR, JHANG"
+        ],
+        "Shorkot": [],
+        "Ahmadpur Sial": [],
+        "Athara Hazari": [],
+        "Mandi Shah Jeewna": [],
+        "A.P Sial": [
+            "332213 | GOVT. ASSOCIATE COLLEGE (W), AHMADPUR SIAL, JHANG",
+            "332211 | GOVT. GRADUATE COLLEGE, GARH MAHARAJA AHMEDPUR SIAL, JHANG"
+        ]
+    },
+    "Chiniot": {
+        "Bhawana": [],
+        "Chiniot": [
+            "334102 | GOVT. GRADUATE TALIM-UL-ISLAM COLLEGE, CHENAB NAGAR, CHINIOT"
+        ],
+        "Lalian": [
+            "334201 | GOVT. ASSOCIATE COLLEGE (W), LALIAN, CHINIOT"
+        ],
+        "Bhowana": [
+            "334303 | GOVT. MOULANA MUHAMMAD ZAKIR ASSOCIATE COLLEGE, AMINPUR BANGLOW, CHINIOT"
+        ]
+    },
+    "Toba Tek Singh": {
+        "Gojra": [],
+        "Kamalia": [
+            "333205 | GOVT. ASSOCIATE COLLEGE (W), 721/GB, KAMALIA, TOBA TEK SINGH",
+            "333201 | GOVT. GRADUATE COLLEGE, KAMALIA, TOBA TEK SINGH"
+        ],
+        "Pir Mahal": [],
+        "Toba Tek Singh": [
+            "333306 | GOVT. ASSOCIATE COLLEGE (W), RAJANA, TOBA TEK SINGH",
+            "333301 | GOVT. ASSOCIATE COLLEGE, MAURUSIPUR, TOBA TEK SINGH",
+            "333203 | GOVT. GRADUATE COLLEGE (W), PIRMAHAL, TOBA TEK SINGH"
+        ]
+    },
+    "Sargodha": {
+        "Bhalwal": [
+            "384104 | GOVT. ASSOCIATE COLLEGE (W), PHULARWAN, SARGODHA",
+            "384503 | GOVT. ASSOCIATE COLLEGE (W), FAROOQA, SARGODHA",
+            "384501 | GOVT. ASSOCIATE COLLEGE, FAROOQA, SahiwalSARGODHA"
+        ],
+        "Bhera": [
+            "384220 | GOVT. ASSOCIATE COLLEGE (W), MIANI, SARGODHA",
+            "384102 | GOVT. ASSOCIATE COLLEGE, MIANI, SARGODHA"
+        ],
+        "Kot Momin": [
+            "384107 | GOVT. ASSOCIATE COLLEGE (W), KOT MOMIN SARGODHA"
+        ],
+        "Sahiwal": [],
+        "Sargodha": [
+            "384205 | GOVT. ASSOCIATE COLLEGE (W), BLOCK NO. 23/A SARGODHA",
+            "384222 | GOVT. ASSOCIATE COLLEGE (W), MELA MANDI, SARGODHA",
+            "384209 | GOVT. ASSOCIATE COLLEGE (W), BHAGTANWALA, SARGODHA",
+            "384303 | GOVT. ASSOCIATE COLLEGE, JHAWARIAN, SARGODHA",
+            "384215 | GOVT. ASSOCIATE COLLEGE (W), MARI, SARGODHA",
+            "384208 | GOVT. ASSOCIATE COLLEGE (W), CHAK NO. 36/SB, SARGODHA",
+            "384206 | GOVT. ASSOCIATE COLLEGE (W), CHAK 98/NB, SARGODHA",
+            "384202 | GOVT. ASSOCIATE COLLEGE, CHAK NO. 90/SB, SARGODHA",
+            "384210 | GOVT. GRADUATE COLLEGE (W), FAROOQ COLONY, SARGODHA",
+            "384211 | GOVT. GRADUATE COLLEGE (W), CHANDNI CHOWK, SARGODHA"
+        ],
+        "Shahpur": [
+            "384302 | GOVT. ASSOCIATE COLLEGE (W), SHAHPUR, SARGODHA",
+            "384301 | GOVT. ASSOCIATE COLLEGE, SHAHPUR SADAR, SARGODHA"
+        ],
+        "Sillanwala": [],
+        "Sillanwali": [
+            "384402 | GOVT. ASSOCIATE COLLEGE (W), SILLANWALI, SARGODHA"
+        ]
+    },
+    "Khushab": {
+        "Khushab": [
+            "382107 | GOVT. GRADUATE COLLEGE (W), KHUSHAB"
+        ],
+        "Noorpur": [
+            "382202 | GOVT. ASSOCIATE COLLEGE (W), NOOR PUR THAL, KHUSHAB"
+        ],
+        "Quaidabad": [
+            "382104 | GOVT. ASSOCIATE COLLEGE, QUAIDABAD, KHUSHAB",
+            "382105 | GOVT. ASSOCIATE COLLEGE (W), QUAIDABAD, KHUSHAB"
+        ],
+        "Naushera": []
+    },
+    "Mianwali": {
+        "Isakhel": [],
+        "Mianwali": [
+            "383206 | GOVT. ASSOCIATE COLLEGE (W), WAN BHACHRAN, MIANWALI",
+            "383210 | GOVT. ASSOCIATE COLLEGE (W), MOCH, MIANWALI",
+            "383303 | GOVT. ASSOCIATE COLLEGE (W), KUNDIAN, MIANWALI"
+        ],
+        "Piplan": []
+    },
+    "Bhakkar": {
+        "Bhakkar": [
+            "381109 | GOVT. ASSOCIATE COLLEGE (W), 47/TDA, BHAKKAR",
+            "381104 | GOVT. ASSOCIATE COLLEGE (W), BEHAL, BHAKKAR",
+            "381101 | GOVT. GRADUATE COLLEGE, BHAKKAR"
+        ],
+        "Darya Khan": [
+            "381405 | GOVT. ASSOCIATE COLLEGE OF COMMERCE, DARYA KHAN, BHAKKAR"
+        ],
+        "Kaloorkot": [],
+        "Mankera": [
+            "381103 | GOVT. ASSOCIATE COLLEGE (W), MANKERA, BHAKKAR"
+        ],
+        "Kallur Kot": [
+            "381203 | GOVT. ASSOCIATE COLLEGE (W), KALLUR KOT, BHAKKAR"
+        ]
+    },
+    "Sahiwal": {
+        "Chichawatni": [],
+        "Sahiwal": [
+            "397204 | GOVT. ASSOCIATE COLLEGE (W), HARAPPA, SAHIWAL"
+        ]
+    },
+    "Okara": {
+        "Depalpur": [
+            "393103 | GOVT. ASSOCIATE COLLEGE, HAVELI LAKHA, OKARA",
+            "393102 | GOVT. ASSOCIATE COLLEGE, HUJRA SHAH MUQEEM, OKARA"
+        ],
+        "Okara": [],
+        "Renala Khurd": [
+            "393204 | GOVT. ASSOCIATE COLLEGE (W), RENALA KHURD, OKARA"
+        ]
+    },
+    "Pakpattan": {
+        "Arifwala": [
+            "398102 | GOVT. GRADUATE COLLEGE (W), ARIF WALA, PAKPATTAN"
+        ],
+        "Pakpattan": [
+            "398201 | GOVT. FARIDIA GRADUATE COLLEGE, PAKPATTAN"
+        ]
+    },
+    "Multan": {
+        "Jalalpur Pirwala": [],
+        "Multan City": [],
+        "Multan Saddar": [],
+        "Shujabad": [],
+        "Multan": [
+            "361106 | GOVT. ASSOCIATE COLLEGE, MAKHDOOM RASHEED, MULTAN",
+            "361107 | GOVT. MILLAT GRADUATE COLLEGE, MUMTAZABAD, MULTAN",
+            "361109 | GOVT. GRADUATE COLLEGE (W), MUMTAZABAD, MULTAN",
+            "361110 | GOVT. GRADUATE COLLEGE (W), SHAH RUKN E ALAM, MULTAN"
+        ]
+    },
+    "Vehari": {
+        "Burewala": [],
+        "Mailsi": [
+            "363204 | GOVT. ASSOCIATE COLLEGE (W), TIBBA SULTANPUR, VEHARI",
+            "363201 | GOVT. GRADUATE COLLEGE, MAILSI, VEHARI"
+        ],
+        "Vehari": [
+            "363304 | GOVT. ASSOCIATE COLLEGE (W), LUDDAN, VEHARI"
+        ]
+    },
+    "Lodhran": {
+        "Dunyapur": [],
+        "Kahror Pacca": [],
+        "Lodhran": [
+            "366103 | GOVT. SYED NASAR UD DIN SHAH ASSOCIATE COLLEGE, GOGRAN, LODHRAN"
+        ],
+        "Dunya Pur": [
+            "366302 | GOVT. ASSOCIATE COLLEGE, MAKHDOOM AALI LODHRAN"
+        ]
+    },
+    "Khanewal": {
+        "Jahanian": [
+            "364401 | GOVT. ASSOCIATE COLLEGE, JAHANIAN, KHANEWAL"
+        ],
+        "Kabirwala": [],
+        "Mian Channu": [
+            "364302 | GOVT. ASSOCIATE COLLEGE (W), MIAN CHANNU, KHANEWAL"
+        ],
+        "Khanewal": []
+    },
+    "Dera Ghazi Khan": {
+        "Dera Ghazi Khan": [],
+        "Kot Chutta": []
+    },
+    "Rajanpur": {
+        "Jampur": [
+            "324104 | GOVT. ASSOCIATE COLLEGE OF COMMERCE, JAMPUR, RAJANPUR"
+        ],
+        "Rajanpur": [],
+        "Rojhan": []
+    },
+    "Taunsa": {
+        "Taunsa": [],
+        "Kohe Suleiman": []
+    },
+    "Layyah": {
+        "Chaubara": [
+            "322103 | GOVT. ASSOCIATE COLLEGE (W), CHOUBARA, LAYYAH",
+            "322202 | GOVT. GRADUATE COLLEGE, FATEHPUR, LAYYAH"
+        ],
+        "Karor Lal Esan": [],
+        "Layyah": [
+            "322307 | GOVT. ASSOCIATE COLLEGE (W), MIRHAN, LAYYAH",
+            "322303 | GOVT. GRADUATE COLLEGE, CHOWK AZAM, LAYYAH",
+            "322306 | GOVT. GRADUATE COLLEGE (W), CHOWK AZAM, LAYYAH"
+        ],
+        "Karor Lal E Son": [
+            "322203 | GOVT. ASSOCIATE COLLEGE (W), KAROR, LAYYAH",
+            "322204 | GOVT. ASSOCIATE COLLEGE (W), FATEHPUR, LAYYAH"
+        ]
+    },
+    "Kot Addu": {
+        "Kot Addu": [
+            "323206 | GOVT. ASSOCIATE COLLEGE (W), ADDA GUJRAT, KOT ADU, MUZAFFARGARH",
+            "323203 | GOVT. ASSOCIATE COLLEGE OF COMMERCE, KOT ADU, MUZAFFARGARH"
+        ],
+        "Chowk Sarwar Shaheed": []
+    },
+    "Muzaffargarh": {
+        "Alipur": [],
+        "Jatoi": [],
+        "Muzaffargarh": [
+            "323302 | GOVT. ASSOCIATE COLLEGE, RANGPUR, MUZAFFARGARH",
+            "323311 | GOVT. ASSOCIATE COLLEGE (W), RANGPUR, MUZAFFARGARH"
+        ]
+    },
+    "Rawalpindi": {
+        "Rawalpindi": [
+            "373305 | GOVT. ASSOCIATE COLLEGE (W), KHAYABAN E SIR SYED, RAWALPINDI",
+            "373312 | GOVT. ASSOCIATE COLLEGE (W), MUSLIM TOWN, RAWALPINDI",
+            "373315 | GOVT. ASSOCIATE COLLEGE (W), DHOKE HASSU, RAWALPINDI",
+            "373318 | GOVT. ASSOCIATE COLLEGE (W), JHANDA CHICHI, RAWALPINDI",
+            "373403 | GOVT. ASSOCIATE COLLEGE (W), WAH CANTT, RAWALPINDI",
+            "373603 | GOVT. ASSOCIATE COLLEGE (W), DAULTALA, RAWALPINDI",
+            "373322 | GOVT. ASSOCIATE COLLEGE (W), DHOKE MANGTAL, RAWALPINDI",
+            "373303 | GOVT. HASHMAT ALI ISLAMIA ASSOCIATE COLLEGE, RAWALPINDI",
+            "373324 | GOVT. ASSOCIATE COLLEGE (W), SIHAL, RAWALPINDI",
+            "373306 | GOVT. KHADIJA UMAR ASSOCIATE COLLEGE (W), TENCH BHATTA, RAWALPINDI"
+        ],
+        "Gujar Khan": [
+            "373602 | GOVT. SARWAR SHAHEED NISHAN E HAIDER ASSOCIATE COLLEGE, GUJAR KHAN, RAWALPINDI"
+        ],
+        "Kahuta": [],
+        "Kallar Syedan": [
+            "373701 | GOVT. ASSOCIATE COLLEGE (W), KALLAR SYEDAN, RAWALPINDI"
+        ],
+        "Taxila": []
+    },
+    "Jhelum": {
+        "Dina": [],
+        "Jhelum": [
+            "372202 | GOVT. ASSOCIATE COLLEGE (W), PIND DADAN KHAN, JHELUM"
+        ],
+        "Pind Dadan Khan": [],
+        "Sohawa": []
+    },
+    "Attock": {
+        "Attock": [],
+        "Fateh Jang": [],
+        "Hassan Abdal": [],
+        "Hazro": [
+            "371602 | GOVT. ASSOCIATE COLLEGE (W), HAZRO, ATTOCK"
+        ],
+        "Jand": [],
+        "Pindi Gheb": [],
+        "Pindi": [
+            "371302 | GOVT. ASSOCIATE COLLEGE (W), PINDI GHEB, ATTOCK"
+        ],
+        "Hassan Abdaal": [
+            "371501 | GOVT. ASSOCIATE COLLEGE (W), HASSAN ABDAL ATTOCK"
+        ]
+    },
+    "Murree": {
+        "Kotli Sattian": [],
+        "Murree": []
+    },
+    "Talagang": {
+        "Talagang": [],
+        "Lawa": []
+    },
+    "Chakwal": {
+        "Chakwal": [
+            "374106 | GOVT. ASSOCIATE COLLEGE (W), BALKASSAR CHAKWAL",
+            "374111 | GOVT. ASSOCIATE COLLEGE (W), MultanKHURD, CHAKWAL",
+            "374117 | GOVT. ASSOCIATE COLLEGE (W), BHAGWAL, CHAKWAL"
+        ],
+        "Choa Saidan Shah": [
+            "374302 | GOVT. ASSOCIATE COLLEGE (W), CHOA SAIDEN SHAH, CHAKWAL",
+            "374107 | GOVT. ASSOCIATE COLLEGE (W), ARA BASHARAT CHOA SAIDAN SHAH CHAKWAL"
+        ],
+        "Kallar Kahar": []
+    },
+    "Bahawalpur": {
+        "Ahmadpur East": [],
+        "Bahawalpur City": [],
+        "Bahawalpur Saddar": [],
+        "Hasilpur": [
+            "312302 | GOVT. GRADUATE COLLEGE (W), HASILPUR, BAHAWALPUR"
+        ],
+        "Khairpur Tamewali": [],
+        "Yazman": [],
+        "Ahmad Pur Sharqia": [
+            "312210 | GOVT. ASSOCIATE COLLEGE, SAMA SATTA, BAHAWALPUR",
+            "312211 | GOVT. ASSOCIATE COLLEGE (W), BANGLA TAILWALA, BAHAWALPUR",
+            "312102 | GOVT. MAKHDOOM SHAMS UL DIN GILLANI ASSOCIATE COLLEGE, UCH SHARIF, BAHAWALPUR"
+        ]
+    },
+    "Rahim Yar Khan": {
+        "Khanpur": [
+            "313306 | GOVT. ASSOCIATE COLLEGE (W), SAKKAR ADDA, RAHIM YAR KHAN"
+        ],
+        "Liaqatpur": [],
+        "Rahim Yar Khan": [
+            "313305 | GOVT. FATIMA JINNAH ASSOCIATE COLLEGE (W), 103/I L KHANPUR, RAHIM YAR KHAN"
+        ],
+        "Sadiqabad": [],
+        "Liaquat Pur": [
+            "313201 | GOVT ASSOCIATE COLLEGE, ALLAMA IQBAL TOWN, LIAQUATPUR, RAHIM YAR KHAN",
+            "313304 | GOVT. ASSOCIATE COLLEGE (W), KHAN BELA, LIAQUATPUR, RAHIM YAR KHAN"
+        ]
+    },
+    "Bahawalnagar": {
+        "Bahawalnagar": [],
+        "Chishtian": [],
+        "Fort Abbas": [],
+        "Haroonabad": [],
+        "Minchinabad": [],
+        "Fortabbas": [
+            "311105 | GOVT. ASSOCIATE COLLEGE, MARROT, FORT ABBAS, BAHAWALNAGAR"
+        ]
+    },
+    "Shekhupura": {
+        "Ferozewala": [
+            "354101 | GOVT. ASSOCIATE COLLEGE (W), FEROZEWALA, SHEIKHUPURA"
+        ]
+    },
+    "Mandi Bahud Din": {
+        "Malakwal": [
+            "346304 | GOVT. ASSOCIATE COLLEGE (W), QADIRABAD, MANDI BAHAUDDIN"
+        ]
+    },
+    "Nankana Sahab": {
+        "Shahkot": [
+            "356302 | GOVT. GRADUATE COLLEGE (W), SHAHKOT, NANKANA SAHIB"
+        ],
+        "Sangla Hill": [
+            "356401 | GOVT. ISLAMIA GRADUATE COLLEGE, SANGLA HILL, NANKANA SAHIB",
+            "356402 | GOVT. GRADUATE COLLEGE (W), SANGLA HILL, NANKANA SAHIB"
+        ]
+    },
+    "Tandlianwala": {
+        "Tandlianwala": [
+            "331601 | GOVT. GRADUATE COLLEGE, TANDLIANWALA, FAISALABAD"
+        ]
+    }
+}

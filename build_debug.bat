@@ -1,0 +1,6 @@
+@echo off
+echo [DEBUG BUILD] Generating resources...
+rsrc -manifest app.manifest -ico icon.ico -o rsrc.syso
+echo [DEBUG BUILD] Compiling with console...
+go build -o agent_debug.exe .
+echo [DEBUG BUILD] Done.
