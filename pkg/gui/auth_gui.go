@@ -6,8 +6,8 @@ import (
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
 
-	"labguardian/agent/pkg/auth"
-	"labguardian/agent/pkg/config"
+	"go_lms_agent/pkg/auth"
+	"go_lms_agent/pkg/config"
 )
 
 // ShowAuthDialog mimics the original Python auth logic.

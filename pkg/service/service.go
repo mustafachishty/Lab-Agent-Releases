@@ -3,25 +3,25 @@ package service
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"time"
 
-	"labguardian/agent/pkg/config"
-	"labguardian/agent/pkg/tracker"
+	"go_lms_agent/pkg/config"
+	"go_lms_agent/pkg/tracker"
 )
 
+// RunDirect starts the service logic directly (useful for debug mode).
+func RunDirect() {
+	StartTracking()
+}
+
 // StartTracking starts the infinite loop to poll for active apps.
-// This is the core logic requested for high-frequency session tracking.
 func StartTracking() {
-	go func() {
-		for {
-			app := tracker.GetActiveApp()
-			tracker.TrackApp(app)
-			time.Sleep(3 * time.Second)
-		}
-	}()
+	for {
+		tracker.TrackDelta()
+		time.Sleep(3 * time.Second)
+	}
 }
 
 // RunAsService is called by main.go when the --service flag is used.

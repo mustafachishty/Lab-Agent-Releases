@@ -1,12 +1,9 @@
 package tracker
 
 import (
-	"log"
+	"sync"
 	"syscall"
-	"time"
 	"unsafe"
-
-	"labguardian/agent/pkg/db"
 )
 
 var (
@@ -16,8 +13,8 @@ var (
 )
 
 var (
-	currentApp string
-	startTime  time.Time
+	mu     sync.Mutex
+	deltas = make(map[string]int)
 )
 
 // GetActiveApp returns the title of the currently focused window on Windows.
@@ -37,38 +34,21 @@ func GetActiveApp() string {
 	return title
 }
 
-// TrackApp monitors app changes and saves finished sessions to DB.
-func TrackApp(newApp string) {
-	now := time.Now()
-
-	// Initial start
-	if currentApp == "" {
-		currentApp = newApp
-		startTime = now
-		return
-	}
-
-	// If app changed, save the previous session
-	if newApp != currentApp {
-		saveSession(currentApp, startTime, now)
-		currentApp = newApp
-		startTime = now
-	}
+// TrackDelta increments the counter for the active app.
+// Called every 3 seconds by the supervisor.
+func TrackDelta() {
+	app := GetActiveApp()
+	mu.Lock()
+	defer mu.Unlock()
+	deltas[app] += 3
 }
 
-func saveSession(app string, start, end time.Time) {
-	duration := int(end.Sub(start).Seconds())
-	if duration < 1 {
-		return // Ignore micro-switches
-	}
-
-	_, err := db.DB.Exec(`
-		INSERT INTO app_usage (app_name, start_time, end_time, duration, status)
-		VALUES (?, ?, ?, ?, 'pending')`,
-		app, start.Format(time.RFC3339), end.Format(time.RFC3339), duration,
-	)
-
-	if err != nil {
-		log.Printf("[TRACKER] Failed to save session: %v", err)
-	}
+// GetDeltas returns the accumulated usage and clears the map.
+func GetDeltas() map[string]int {
+	mu.Lock()
+	defer mu.Unlock()
+	
+	current := deltas
+	deltas = make(map[string]int)
+	return current
 }

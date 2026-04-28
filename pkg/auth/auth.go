@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"labguardian/agent/pkg/config"
+	"go_lms_agent/pkg/config"
 )
 
 // ---------------------------------------------------------------

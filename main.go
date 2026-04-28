@@ -17,13 +17,11 @@ import (
 	"log"
 	"os"
 
-	"labguardian/agent/pkg/auth"
-	"labguardian/agent/pkg/config"
-	"labguardian/agent/pkg/db"
-	"labguardian/agent/pkg/gui"
-	"labguardian/agent/pkg/heartbeat"
-	"labguardian/agent/pkg/service"
-	"labguardian/agent/pkg/sync"
+	"go_lms_agent/pkg/auth"
+	"go_lms_agent/pkg/config"
+	"go_lms_agent/pkg/gui"
+	"go_lms_agent/pkg/heartbeat"
+	"go_lms_agent/pkg/service"
 )
 
 func main() {
@@ -31,9 +29,6 @@ func main() {
 	if err := config.EnsureDirectories(); err != nil {
 		log.Printf("[INIT] Warning: could not create data dirs: %v", err)
 	}
-
-	// Initialize SQLite Database (Hardened Persistence)
-	db.InitDB()
 
 	flag := ""
 	if len(os.Args) > 1 {
@@ -64,9 +59,7 @@ func main() {
 	case "--debug":
 		// Direct run (debug / development mode)
 		fmt.Println("[Lab Guardian Agent] Starting in direct mode...")
-		if err := service.RunDirect(); err != nil {
-			log.Fatalf("[RUN] Fatal: %v", err)
-		}
+		service.RunDirect()
 
 	default:
 		// GUI mode — the standard user experience.
@@ -115,7 +108,6 @@ func main() {
 
 		// Step 5: Start the Supervisor with all core services
 		go service.SafeRun("AppTracker", service.StartTracking)
-		go service.SafeRun("SyncEngine", func() { sync.StartSyncWorker(cfg) })
 		go service.SafeRun("Heartbeat", func() { heartbeat.StartHeartbeat(cfg) })
 
 		// Step 6: Open the management GUI (Main Thread)

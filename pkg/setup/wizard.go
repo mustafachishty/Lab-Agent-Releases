@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"labguardian/agent/pkg/auth"
-	"labguardian/agent/pkg/config"
+	"go_lms_agent/pkg/auth"
+	"go_lms_agent/pkg/config"
 )
 
 // MetaResponse is the structure returned by GET /api/get-meta.

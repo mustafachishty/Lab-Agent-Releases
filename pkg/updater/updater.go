@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"labguardian/agent/pkg/config"
+	"go_lms_agent/pkg/config"
 )
 
 // GithubRepo is the GitHub repository path used for OTA updates.
