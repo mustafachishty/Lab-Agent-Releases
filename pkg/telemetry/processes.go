@@ -9,9 +9,7 @@ package telemetry
 import (
 	"strings"
 	"sync"
-	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/shirou/gopsutil/v3/process"
 )
@@ -147,6 +145,7 @@ func NewProcessTracker(interval time.Duration) *ProcessTracker {
 func (t *ProcessTracker) Tick() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
 	now := time.Now()
 	elapsed := int(now.Sub(t.lastTick).Seconds())
 	t.lastTick = now
@@ -155,84 +154,37 @@ func (t *ProcessTracker) Tick() {
 		return
 	}
 
-	// 🕵️ ACTIVE WINDOW DETECTION (The "Foreground Filter")
-	// We only track the application the user is ACTUALLY using.
-	pid := getForegroundProcessID()
-	if pid == 0 {
-		return
-	}
-
-	p, err := process.NewProcess(int32(pid))
+	procs, err := process.Processes()
 	if err != nil {
 		return
 	}
 
-	name, err := p.Name()
-	if err != nil {
-		return
-	}
+	seen := map[string]bool{}
+	for _, p := range procs {
+		name, err := p.Name()
+		if err != nil {
+			continue
+		}
+		// Strip extension
+		name = strings.TrimSuffix(strings.ToLower(name), ".exe")
 
-	// Strip extension
-	name = strings.TrimSuffix(strings.ToLower(name), ".exe")
+		if systemNoise[name] {
+			continue
+		}
 
-	if systemNoise[name] {
-		return
-	}
+		// Look up friendly name from mapping
+		friendly, mapped := AppMapping[name]
+		if !mapped {
+			continue // Not a tracked application
+		}
 
-	// Look up friendly name from mapping
-	friendly, mapped := AppMapping[name]
-	if !mapped {
-		return // Not a tracked application
+		// Only count each application once per tick even if multiple instances run
+		if seen[friendly] {
+			continue
+		}
+		seen[friendly] = true
+		t.usage[friendly] += elapsed
 	}
-
-	t.usage[friendly] += elapsed
-}
-
-// Windows API helpers
-var (
-	moduser32 = syscall.NewLazyDLL("user32.dll")
-	procGetForegroundWindow = moduser32.NewProc("GetForegroundWindow")
-	procGetWindowThreadProcessId = moduser32.NewProc("GetWindowThreadProcessId")
-)
-
-func getForegroundProcessID() uint32 {
-	hwnd, _, _ := procGetForegroundWindow.Call()
-	if hwnd == 0 {
-		return 0
-	}
-	var pid uint32
-	procGetWindowThreadProcessId.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
-	return pid
-}
-
-// GetForegroundWindowName returns the friendly name of the active application.
-func GetForegroundWindowName() string {
-	pid := getForegroundProcessID()
-	if pid == 0 {
-		return ""
-	}
-	p, err := process.NewProcess(int32(pid))
-	if err != nil {
-		return ""
-	}
-	name, err := p.Name()
-	if err != nil {
-		return ""
-	}
-	name = strings.TrimSuffix(strings.ToLower(name), ".exe")
-	if systemNoise[name] {
-		return ""
-	}
-	if friendly, ok := AppMapping[name]; ok {
-		return friendly
-	}
-	
-	// Senior Level Fix: If not in mapping, return capitalized name so it's NOT ignored.
-	// Only return empty if it's explicitly identified as system noise.
-	if len(name) > 0 {
-		return strings.ToUpper(name[:1]) + name[1:]
-	}
-	return ""
 }
 
 // Snapshot returns and resets (delta mode) the current usage map.

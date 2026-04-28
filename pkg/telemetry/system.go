@@ -4,6 +4,7 @@ package telemetry
 
 import (
 	"fmt"
+	"os/exec"
 	"runtime"
 	"strings"
 	"time"
@@ -13,12 +14,7 @@ import (
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/net"
-	"github.com/yusufpapurcu/wmi"
 )
-
-type Win32_VideoController struct {
-	Name string
-}
 
 // Snapshot holds a point-in-time reading of all system metrics.
 type Snapshot struct {
@@ -117,18 +113,21 @@ func Collect() (*Snapshot, error) {
 	return s, nil
 }
 
-// getGPUName queries the GPU name via native WMI (No PowerShell).
+// getGPUName queries the GPU name from WMI on Windows.
+// Returns "Unknown" if query fails.
 func getGPUName() string {
 	if runtime.GOOS != "windows" {
 		return "N/A"
 	}
-	var dst []Win32_VideoController
-	q := wmi.CreateQuery(&dst, "")
-	if err := wmi.Query(q, &dst); err != nil {
+	cmd := exec.Command("powershell", "-NoProfile", "-Command",
+		"(Get-WMIObject -Class Win32_VideoController | Select-Object -First 1).Name")
+	out, err := cmd.Output()
+	if err != nil {
 		return "Unknown"
 	}
-	if len(dst) > 0 {
-		return dst[0].Name
+	name := strings.TrimSpace(string(out))
+	if name == "" {
+		return "Unknown"
 	}
-	return "Unknown"
+	return name
 }

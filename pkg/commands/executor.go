@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"labguardian/agent/pkg/config"
-	"github.com/kbinani/screenshot"
 )
 
 // CommandEnvelope is the C2 command structure from the server.
@@ -90,24 +89,34 @@ func Execute(cfg *config.Config, raw json.RawMessage) {
 // ---------------------------------------------------------------
 
 // takeScreenshot captures the primary display and returns a base64-encoded PNG string.
+// Uses PowerShell's System.Windows.Forms.Screen for maximum compatibility.
 func takeScreenshot() (string, error) {
-	n := screenshot.NumActiveDisplays()
-	if n <= 0 {
-		return "", fmt.Errorf("no active displays found")
-	}
-
-	// Capture the first display (primary)
-	img, err := screenshot.CaptureDisplay(0)
+	script := `
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+$bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+$bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+$g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+$stream = New-Object System.IO.MemoryStream
+$bmp.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
+$g.Dispose(); $bmp.Dispose()
+[Convert]::ToBase64String($stream.ToArray())
+`
+	cmd := exec.Command("powershell", "-NoProfile", "-Command", script)
+	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("screenshot capture failed: %w", err)
+		return "", fmt.Errorf("screenshot failed: %w", err)
 	}
-
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		return "", fmt.Errorf("png encoding failed: %w", err)
+	encoded := strings.TrimSpace(string(out))
+	if encoded == "" {
+		return "", fmt.Errorf("empty screenshot output")
 	}
-
-	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
+	// Verify the base64 is valid PNG
+	if _, err := base64.StdEncoding.DecodeString(encoded); err != nil {
+		return "", fmt.Errorf("invalid base64 from screenshot")
+	}
+	_ = png.Decode // Ensure import is used
+	return encoded, nil
 }
 
 // runCommand executes a shell command and returns its combined stdout.
@@ -129,13 +138,8 @@ func terminateProcess(name string) error {
 	if name == "" {
 		return fmt.Errorf("empty process name")
 	}
-	
-	// Normalize name: remove .exe if present, then add it back to ensure exactly one .exe
-	cleanName := strings.TrimSuffix(strings.ToLower(name), ".exe")
-	target := cleanName + ".exe"
-	
 	// taskkill /F /IM <name>.exe — force-kills all instances
-	cmd := exec.Command("taskkill", "/F", "/IM", target)
+	cmd := exec.Command("taskkill", "/F", "/IM", name+".exe")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("taskkill failed: %s (%w)", string(out), err)

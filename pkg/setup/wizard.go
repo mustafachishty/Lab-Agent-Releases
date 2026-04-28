@@ -17,7 +17,6 @@ import (
 
 	"labguardian/agent/pkg/auth"
 	"labguardian/agent/pkg/config"
-	"labguardian/agent/pkg/persistence"
 )
 
 // MetaResponse is the structure returned by GET /api/get-meta.
@@ -153,12 +152,10 @@ func RunWizard() error {
 		fmt.Println("Authentication successful.")
 	}
 
-	// Save config to SQLite
-	persistence.SetConfig("system_id", cfg.SystemID)
-	persistence.SetConfig("city", cfg.District)
-	persistence.SetConfig("tehsil", cfg.Tehsil)
-	persistence.SetConfig("lab_name", cfg.LabName)
-	persistence.SetConfig("pc_name", cfg.PCName)
+	// Save config
+	if err := config.Save(cfg); err != nil {
+		return fmt.Errorf("save config: %w", err)
+	}
 
 	fmt.Println("\n=========================================")
 	fmt.Printf("  Setup Complete!\n")

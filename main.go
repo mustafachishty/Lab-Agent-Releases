@@ -1,3 +1,15 @@
+// Lab Guardian Agent — main entrypoint.
+//
+// Launch modes (determined by CLI flags):
+//   --service  : Run directly as a Windows Service (called by SCM)
+//   --install  : Install the agent as a native Windows Service (CLI)
+//   --uninstall: Remove the Windows Service (CLI)
+//   --debug    : Run heartbeat loop in foreground (dev mode)
+//   (none)     : Default GUI mode — auto-elevates to Admin, auto-installs if needed.
+//
+// Build for Windows:
+//
+//	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -H=windowsgui" -o agent.exe .
 package main
 
 import (
@@ -7,59 +19,14 @@ import (
 
 	"labguardian/agent/pkg/auth"
 	"labguardian/agent/pkg/config"
-	"labguardian/agent/pkg/diagnostics"
 	"labguardian/agent/pkg/gui"
-	"labguardian/agent/pkg/heartbeat"
-	"labguardian/agent/pkg/persistence"
 	"labguardian/agent/pkg/service"
-	"labguardian/agent/pkg/setup"
-	"os/signal"
-	"syscall"
 )
 
-func hydrateIdentity(cfg *config.Config) {
-	if cfg == nil {
-		return
-	}
-
-	if cfg.HardwareID == "" {
-		if hid, err := auth.GetHardwareID(); err == nil {
-			cfg.HardwareID = hid
-		}
-	}
-
-	if cfg.PCName == "" {
-		if name, err := os.Hostname(); err == nil {
-			cfg.PCName = name
-			persistence.SetConfig("pc_name", name)
-		}
-	}
-}
-
 func main() {
-	elevatedFlag := false
-	for _, arg := range os.Args {
-		if arg == "--elevated" {
-			elevatedFlag = true
-			break
-		}
-	}
-
-	if !service.IsElevated() && !elevatedFlag {
-		log.Println("[MAIN] Not elevated. Attempting one-time relaunch as Admin...")
-		if err := service.RelaunchAsAdmin(); err == nil {
-			os.Exit(0) // Successful relaunch call, this process can exit
-		}
-		log.Printf("[MAIN] Relaunch request failed. Proceeding in limited mode.")
-	}
-
-	// 1. Ensure directories exist with correct ACLs (icacls)
-	config.EnsureDirectories()
-
-	// 2. Initialize ACID Persistence
-	if err := persistence.Init(); err != nil {
-		gui.ShowFatalError("DB Initialization Failed", err)
-		log.Fatalf("[FATAL] DB Init failed: %v", err)
+	// Ensure data directories exist on first run
+	if err := config.EnsureDirectories(); err != nil {
+		log.Printf("[INIT] Warning: could not create data dirs: %v", err)
 	}
 
 	flag := ""
@@ -68,104 +35,80 @@ func main() {
 	}
 
 	switch flag {
-	case "--preflight":
-		cfg, _ := config.Load()
-		auth.LoadFromDB(cfg)
-		hydrateIdentity(cfg)
-		if err := diagnostics.RunPreflight(cfg); err != nil {
-			fmt.Fprintf(os.Stderr, "[PREFLIGHT] %v\n", err)
-			os.Exit(1)
-		}
-
-	case "--setup":
-		if err := setup.RunWizard(); err != nil {
-			fmt.Fprintf(os.Stderr, "[SETUP] Error: %v\n", err)
-			os.Exit(1)
-		}
-
 	case "--service":
-		cfg, _ := config.Load()
-		auth.LoadFromDB(cfg)
-		hydrateIdentity(cfg)
-
-		// Dynamic Sync
-		gistURL, _ := config.FetchFailsafeConfig()
-		if gistURL != "" && gistURL != cfg.ServerURL {
-			cfg.ServerURL = gistURL
-			persistence.SetConfig("server_url", gistURL)
+		// Called by the Windows Service Control Manager
+		if err := service.RunAsService(); err != nil {
+			log.Fatalf("[SERVICE] Fatal: %v", err)
 		}
-
-		runner := heartbeat.New(cfg)
-		runner.IsService = true
-		service.Run(runner.Run, runner.Stop)
 
 	case "--install":
-		if err := service.InstallService(); err != nil {
+		if err := service.Install(); err != nil {
 			fmt.Fprintf(os.Stderr, "[INSTALL] Error: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("[INSTALL] Lab Guardian Agent service installed.")
+		fmt.Println("[INSTALL] Lab Guardian service installed successfully.")
 
 	case "--uninstall":
-		if err := service.RemoveService(); err != nil {
+		if err := service.Uninstall(); err != nil {
 			fmt.Fprintf(os.Stderr, "[UNINSTALL] Error: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("[UNINSTALL] Lab Guardian Agent service removed.")
+		fmt.Println("[UNINSTALL] Lab Guardian service removed.")
 
 	case "--debug":
-		cfg, _ := config.Load()
-		auth.LoadFromDB(cfg)
-		hydrateIdentity(cfg)
-
-		runner := heartbeat.New(cfg)
-		runner.Run()
+		// Direct run (debug / development mode)
+		fmt.Println("[Lab Guardian Agent] Starting in direct mode...")
+		if err := service.RunDirect(); err != nil {
+			log.Fatalf("[RUN] Fatal: %v", err)
+		}
 
 	default:
-		// GUI mode
+		// GUI mode — the standard user experience.
+		// Step 1: Re-launch with Admin rights if not already elevated.
+		if !service.IsElevated() {
+			if err := service.RelaunchAsAdmin(); err != nil {
+				log.Printf("[INIT] Could not elevate: %v (continuing as-is)", err)
+			} else {
+				os.Exit(0)
+			}
+		}
+
 		cfg, _ := config.Load()
 		if cfg == nil {
 			cfg = &config.Config{ServerURL: config.DefaultServerURL}
 		}
-
-		auth.LoadFromDB(cfg)
-		hydrateIdentity(cfg)
-
-		log.Println("[MAIN] Fetching failsafe config...")
-		gistURL, err := config.FetchFailsafeConfig()
-		if err == nil && gistURL != "" && gistURL != cfg.ServerURL {
-			log.Printf("[MAIN] Updating ServerURL to: %s", gistURL)
-			cfg.ServerURL = gistURL
-			persistence.SetConfig("server_url", gistURL)
+		if cfg.ServerURL == "" {
+			cfg.ServerURL = config.DefaultServerURL
 		}
 
-		if cfg.SystemID != "" {
-			log.Printf("[MAIN] Starting Auth Dialog for SystemID: %s", cfg.SystemID)
-			if !gui.ShowAuthDialog(cfg) {
-				log.Println("[MAIN] Auth Dialog failed or cancelled.")
-				os.Exit(1)
+		// Step 2: Ensure Hardware ID is generated BEFORE doing anything else
+		if cfg.HardwareID == "" {
+			hid, err := auth.GetHardwareID()
+			if err == nil && hid != "" {
+				cfg.HardwareID = hid
+				_ = config.Save(cfg)
 			}
-			log.Println("[MAIN] Auth Dialog successful.")
 		}
 
-		log.Println("[MAIN] Starting Heartbeat Runner...")
-		runner := heartbeat.New(cfg)
-		runner.IsService = false
-		go runner.Run()
+		// Step 3: PRE-AUTH LOCK SCREEN
+		// This mimics exactly the Python pre-auth screen. It blocks the main management GUI from opening
+		// until the Administrator verifies the HID is actually present in the Supabase devices table.
+		if !gui.ShowAuthDialog(cfg) {
+			log.Printf("[SECURITY] Authentication cancelled or failed. Halting.")
+			_ = service.Uninstall()
+			_ = config.Wipe()
+			os.Exit(1)
+		}
 
-		log.Println("[MAIN] Setting up Signal Handling...")
-		go func() {
-			sigChan := make(chan os.Signal, 1)
-			signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-			<-sigChan
-			log.Println("[MAIN] Termination signal received.")
-			runner.Stop()
-			os.Exit(0)
-		}()
+		// Step 4: Auto-install the service if it isn't already running.
+		if !service.IsRunning() {
+			if err := service.Install(); err != nil {
+				log.Printf("[INIT] Auto-install failed: %v", err)
+			}
+		}
 
-		log.Println("[MAIN] Entering RunGUI...")
+		// Step 5: Open the management GUI.
 		gui.RunGUI(cfg)
-		log.Println("[MAIN] GUI exited. Stopping runner.")
-		runner.Stop()
 	}
 }
+

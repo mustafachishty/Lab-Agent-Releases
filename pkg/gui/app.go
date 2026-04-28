@@ -18,7 +18,6 @@ import (
 
 	"labguardian/agent/pkg/auth"
 	"labguardian/agent/pkg/config"
-	"labguardian/agent/pkg/persistence"
 	"labguardian/agent/pkg/service"
 )
 
@@ -79,6 +78,18 @@ func loadHierarchy() map[string]map[string][]string {
 	return h
 }
 
+func loadLocalUsage() map[string]int {
+	data, err := os.ReadFile(config.MetricsCacheFile)
+	if err != nil {
+		return make(map[string]int)
+	}
+	var apps map[string]int
+	if err := json.Unmarshal(data, &apps); err != nil {
+		return make(map[string]int)
+	}
+	return apps
+}
+
 func RunGUI(cfg *config.Config) {
 	var mw *walk.MainWindow
 	var serverURL *walk.LineEdit
@@ -99,16 +110,18 @@ func RunGUI(cfg *config.Config) {
 	updateCombo := func(cb *walk.ComboBox, items []string) {
 		sort.Strings(items)
 		_ = cb.SetModel(items)
-		_ = cb.SetCurrentIndex(-1)
+		if len(items) > 0 {
+			_ = cb.SetCurrentIndex(0)
+		} else {
+			_ = cb.SetCurrentIndex(-1)
+		}
 	}
 
 	appendLog := func(msg string) {
 		t := time.Now().Format("15:04:05")
 		if mw != nil {
 			mw.Synchronize(func() {
-				if outText != nil {
-					outText.AppendText(fmt.Sprintf("[%s] %s\r\n", t, msg))
-				}
+				outText.AppendText(fmt.Sprintf("[%s] %s\r\n", t, msg))
 			})
 		}
 	}
@@ -156,10 +169,11 @@ func RunGUI(cfg *config.Config) {
 						Text: "Install Background Service",
 						OnClicked: func() {
 							appendLog("Requesting SCM connection for installation...")
-							if err := service.InstallService(); err != nil {
-								walk.MsgBox(mw, "Error", "Failed to install service: "+err.Error(), walk.MsgBoxIconError)
+							if err := service.Install(); err != nil {
+								appendLog(fmt.Sprintf("Installation failed: %v", err))
+								walk.MsgBox(mw, "Error", "Permission Denied. Run as Admin.", walk.MsgBoxIconError)
 							} else {
-								walk.MsgBox(mw, "Success", "Background service installed and started.", walk.MsgBoxIconInformation)
+								appendLog("Service installed and activated.")
 							}
 						},
 					},
@@ -167,10 +181,10 @@ func RunGUI(cfg *config.Config) {
 						Text: "Remove Background Tracking",
 						OnClicked: func() {
 							appendLog("Requesting service removal...")
-							if err := service.RemoveService(); err != nil {
-								walk.MsgBox(mw, "Error", "Removal failed: "+err.Error(), walk.MsgBoxIconError)
+							if err := service.Uninstall(); err != nil {
+								appendLog(fmt.Sprintf("Removal failed: %v", err))
 							} else {
-								walk.MsgBox(mw, "Success", "Service removed.", walk.MsgBoxIconInformation)
+								appendLog("Service completely removed.")
 							}
 						},
 					},
@@ -209,21 +223,27 @@ func RunGUI(cfg *config.Config) {
 						Title:  "PC Registration & Lab Assignment",
 						Layout: Grid{Columns: 2},
 						Children: []Widget{
+							// ROW 1
 							Label{Text: "City/District", MinSize: Size{Width: 100}},
 							ComboBox{AssignTo: &cbDistrict},
 							
+							// ROW 2
 							Label{Text: "Tehsil/Town", MinSize: Size{Width: 100}},
 							ComboBox{AssignTo: &cbTehsil},
 							
+							// ROW 3
 							Label{Text: "Lab Name", MinSize: Size{Width: 100}},
 							ComboBox{AssignTo: &cbLab},
 
+							// ROW 4 (Moved below Lab Name)
 							Label{Text: "API Server URL", MinSize: Size{Width: 100}},
 							LineEdit{AssignTo: &serverURL, Text: cfg.ServerURL},
 							
+							// ROW 5 (Moved below API URL)
 							Label{Text: "Selected Slot ID", MinSize: Size{Width: 100}},
 							ComboBox{AssignTo: &cbSlot},
 							
+							// ROW 6: ACTIONS
 							Composite{
 								ColumnSpan: 2,
 								Layout: HBox{MarginsZero: true},
@@ -240,36 +260,15 @@ func RunGUI(cfg *config.Config) {
 												return
 											}
 											availableSlots = slots
-											
-											// Include current slot if it matches the current PC
-											currentFound := false
-											for _, s := range availableSlots {
-												if s.SystemID == cfg.SystemID {
-													currentFound = true
-													break
-												}
-											}
-											if !currentFound && cfg.SystemID != "" {
-												availableSlots = append(availableSlots, SlotRow{
-													SystemID: cfg.SystemID,
-													District: cfg.District,
-													Tehsil:   cfg.Tehsil,
-													LabName:  cfg.LabName,
-												})
-											}
-
 											d, l := cbDistrict.Text(), cbLab.Text()
 											var list []string
 											for _, s := range availableSlots {
-												if (s.District == d && s.LabName == l) || s.LabName == "" || s.LabName == "Unknown" || s.SystemID == cfg.SystemID {
+												if (s.District == d && s.LabName == l) || s.LabName == "" || s.LabName == "Unknown" {
 													list = append(list, s.SystemID)
 												}
 											}
 											updateCombo(cbSlot, list)
-											if cfg.SystemID != "" {
-												cbSlot.SetText(cfg.SystemID)
-											}
-											appendLog(fmt.Sprintf("Found %d slots (including yours) for selection.", len(list)))
+											appendLog(fmt.Sprintf("Found %d available slots for selection.", len(list)))
 										},
 									},
 									PushButton{
@@ -289,35 +288,9 @@ func RunGUI(cfg *config.Config) {
 											cfg.District = cbDistrict.Text()
 											cfg.Tehsil = cbTehsil.Text()
 											cfg.LabName = cbLab.Text()
-											
-											resp, _ := auth.Authenticate(cfg)
-											if resp != nil && resp.Status == "authorized" {
-												cfg.AuthToken = resp.Token
-											}
-
-											persistence.SetConfig("auth_token", cfg.AuthToken)
-											
-											errs := []error{
-												persistence.SetConfig("system_id", cfg.SystemID),
-												persistence.SetConfig("city", cfg.District),
-												persistence.SetConfig("tehsil", cfg.Tehsil),
-												persistence.SetConfig("lab_name", cfg.LabName),
-											}
-											
-											failed := false
-											for _, e := range errs {
-												if e != nil {
-													failed = true
-													appendLog(fmt.Sprintf("LOCAL SAVE FAILED: %v", e))
-												}
-											}
-
-											if failed {
-												walk.MsgBox(mw, "Database Error", "The information was sent to the server, but could not be saved locally.\nCheck folder permissions for C:\\ProgramData\\LabGuardian.", walk.MsgBoxIconWarning)
-											} else {
-												appendLog("SUCCESS: Information saved and synchronized.")
-												walk.MsgBox(mw, "Success", "Configuration updated successfully.", walk.MsgBoxIconInformation)
-											}
+											_ = config.Save(cfg)
+											appendLog("SUCCESS: Information saved and synchronized.")
+											walk.MsgBox(mw, "Success", "Configuration updated successfully.", walk.MsgBoxIconInformation)
 										},
 									},
 								},
@@ -386,7 +359,6 @@ func RunGUI(cfg *config.Config) {
 	updateCombo(cbDistrict, allDistricts)
 	if cfg.District != "" {
 		_ = cbDistrict.SetText(cfg.District)
-		// Trigger hierarchy population manually
 		if tm, ok := hierarchy[cfg.District]; ok {
 			var ts []string
 			for k := range tm { ts = append(ts, k) }
@@ -395,21 +367,17 @@ func RunGUI(cfg *config.Config) {
 				_ = cbTehsil.SetText(cfg.Tehsil)
 				if labs, ok := tm[cfg.Tehsil]; ok {
 					updateCombo(cbLab, labs)
-					if cfg.LabName != "" { 
-						_ = cbLab.SetText(cfg.LabName) 
-					}
+					if cfg.LabName != "" { _ = cbLab.SetText(cfg.LabName) }
 				}
 			}
 		}
 	}
-	
-	// Ensure slot is selectable even before scan
 	if cfg.SystemID != "" {
 		updateCombo(cbSlot, []string{cfg.SystemID})
 		_ = cbSlot.SetText(cfg.SystemID)
 	}
 
-	// 🕵️ LIVE STATUS LOOP
+	// 🕵️ LIVE STATUS LOOP (The "Missing Piece")
 	go func() {
 		client := &http.Client{Timeout: 2 * time.Second}
 		for {
@@ -424,6 +392,7 @@ func RunGUI(cfg *config.Config) {
 			registered := (cfg.SystemID != "")
 
 			mw.Synchronize(func() {
+				// Network Label
 				if isOnline {
 					lblNetworkStatus.SetText("🌐 NETWORK: ONLINE")
 					lblNetworkStatus.SetTextColor(green)
@@ -432,6 +401,7 @@ func RunGUI(cfg *config.Config) {
 					lblNetworkStatus.SetTextColor(red)
 				}
 
+				// Service Label
 				if running {
 					lblServiceStatus.SetText("🚀 SERVICE: RUNNING")
 					lblServiceStatus.SetTextColor(green)
@@ -440,6 +410,7 @@ func RunGUI(cfg *config.Config) {
 					lblServiceStatus.SetTextColor(red)
 				}
 
+				// Registration Label
 				if registered {
 					lblRegistration.SetText("✅ REGISTERED [" + cfg.SystemID + "]")
 					lblRegistration.SetTextColor(green)
@@ -448,7 +419,7 @@ func RunGUI(cfg *config.Config) {
 					lblRegistration.SetText("❌ STATUS: UNREGISTERED")
 					lblRegistration.SetTextColor(red)
 					compositeMonitoring.SetEnabled(false)
-					trackerText.SetText("MONITORING HALTED.")
+					trackerText.SetText("MONITORING HALTED.\r\nSYSTEM IS UNREGISTERED OR REJECTED FROM SERVER.")
 				}
 			})
 			time.Sleep(4 * time.Second)
@@ -459,12 +430,16 @@ func RunGUI(cfg *config.Config) {
 	go func() {
 		for {
 			time.Sleep(3 * time.Second)
-			if cfg.SystemID == "" { continue }
+			
+			// DO NOT DISPLAY ANYTHING IF UNREGISTERED
+			if cfg.SystemID == "" {
+				continue
+			}
 
-			dataStr := persistence.GetConfig("metrics_cache")
-			if dataStr == "" { continue }
+			data, err := os.ReadFile(config.MetricsCacheFile)
+			if err != nil { continue }
 			var apps map[string]int
-			if err := json.Unmarshal([]byte(dataStr), &apps); err != nil { continue }
+			if err := json.Unmarshal(data, &apps); err != nil { continue }
 			type appStat struct { n string; s int }
 			var st []appStat
 			for k, v := range apps { if k != "__current_cpu__" { st = append(st, appStat{k, v}) } }

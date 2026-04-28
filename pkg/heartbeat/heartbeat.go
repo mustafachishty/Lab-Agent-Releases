@@ -1,3 +1,7 @@
+// Package heartbeat manages the 30-second telemetry upload cycle.
+// It sends CPU, RAM, Disk, GPU, and application usage data to the server,
+// handles the C2 command response, and triggers OTA updates if a newer
+// version string is returned.
 package heartbeat
 
 import (
@@ -7,40 +11,39 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"sort"
-	"strconv"
-	"sync"
+	"os"
+	"os/exec"
 	"time"
 
 	"labguardian/agent/pkg/auth"
 	"labguardian/agent/pkg/commands"
 	"labguardian/agent/pkg/config"
 	"labguardian/agent/pkg/journal"
-	"labguardian/agent/pkg/persistence"
 	"labguardian/agent/pkg/telemetry"
 	"labguardian/agent/pkg/updater"
 )
 
-const (
-	heartbeatInterval = 30 * time.Second
-)
+const heartbeatInterval = 30 * time.Second
 
+// Payload is the JSON body sent to POST /api/heartbeat.
 type Payload struct {
-	HardwareID     string                `json:"hardware_id"`
-	SystemID       string                `json:"system_id"`
-	District       string                `json:"city"`
-	Tehsil         string                `json:"tehsil"`
-	LabName        string                `json:"lab_name"`
-	PCName         string                `json:"pc_name"`
-	Status         string                `json:"status"`
-	CPUScore       float64               `json:"cpu_score"`
-	RuntimeMinutes float64               `json:"runtime_minutes"`
-	SessionStart   string                `json:"session_start"`
-	LastActive     string                `json:"last_active"`
-	AppUsage       telemetry.AppUsageMap `json:"app_usage"`
-	IsDelta        bool                  `json:"is_delta"`
+	HardwareID     string                  `json:"hardware_id"`
+	SystemID       string                  `json:"system_id"`
+	District       string                  `json:"city"`
+	Tehsil         string                  `json:"tehsil"`
+	LabName        string                  `json:"lab_name"`
+	PCName         string                  `json:"pc_name"`
+	Status         string                  `json:"status"`
+	CPUScore       float64                 `json:"cpu_score"`
+	RuntimeMinutes int                     `json:"runtime_minutes"`
+	SessionStart   string                  `json:"session_start"`
+	LastActive     string                  `json:"last_active"`
+	AppUsage       telemetry.AppUsageMap   `json:"app_usage"`
+	IsDelta        bool                    `json:"is_delta"`
+	Specs          map[string]interface{}  `json:"specs"`
 }
 
+// Response is the JSON returned from POST /api/heartbeat.
 type Response struct {
 	Status        string          `json:"status"`
 	SystemID      string          `json:"system_id"`
@@ -50,160 +53,101 @@ type Response struct {
 	Command       json.RawMessage `json:"command"`
 }
 
+// Runner manages the heartbeat loop state.
 type Runner struct {
-	cfg             *config.Config
-	tracker         *telemetry.ProcessTracker
-	cumulativeApps  telemetry.AppUsageMap
-	heartbeatDelta  telemetry.AppUsageMap
-	mu              sync.Mutex
-	startTime       time.Time
-	localStartTime  time.Time
-	storedDailySecs int
-	httpClient      *http.Client
-	stopChan        chan struct{}
-	isUpdating      bool
-	IsService       bool // Track if running as service for updates
+	cfg            *config.Config
+	tracker        *telemetry.ProcessTracker
+	cumulativeApps telemetry.AppUsageMap
+	startTime      time.Time // Stable start time for the entire day
+	storedDailyMins int       // Minutes pre-loaded from state.json
+	localStartTime  time.Time // When this process started
+	lastBeat       time.Time
+	httpClient     *http.Client
+	stopChan       chan struct{}
+	isUpdating     bool   // Lock to prevent overlapping updates
+	bootTime       uint64 // System boot timestamp
 }
 
+// New creates a new heartbeat Runner.
 func New(cfg *config.Config) *Runner {
-	auth.LoadFromDB(cfg)
-
-	lastDate := persistence.GetState("last_date")
-	today := time.Now().UTC().Format("2006-01-02")
-
-	// Only clear if we HAVE a last date and it's NOT today.
-	// Prevents clearing on fresh installs or after DB wipes.
-	if lastDate != "" && lastDate != today {
-		log.Printf("[HEARTBEAT] New day %s detected (last was %s). Clearing state.", today, lastDate)
-		persistence.ClearDailyData()
-		persistence.SetState("total_daily_secs", "0")
-		persistence.SetState("first_start_time", time.Now().UTC().Format(time.RFC3339))
-	}
-	persistence.SetState("last_date", today)
-
-	startStr := persistence.GetState("first_start_time")
-	if startStr == "" {
-		startStr = time.Now().UTC().Format(time.RFC3339)
-		persistence.SetState("first_start_time", startStr)
-	}
-	startTime, _ := time.Parse(time.RFC3339, startStr)
-
-	storedSecs, _ := strconv.Atoi(persistence.GetState("total_daily_secs"))
-	usage := persistence.GetTotalAppUsage()
+	state := LoadState()
 
 	return &Runner{
 		cfg:             cfg,
 		tracker:         telemetry.NewProcessTracker(5 * time.Second),
-		cumulativeApps:  usage,
-		heartbeatDelta:  make(telemetry.AppUsageMap),
-		startTime:       startTime,
-		storedDailySecs: storedSecs,
+		cumulativeApps:  state.CumulativeApps,
+		startTime:       state.FirstStartTime,
+		storedDailyMins: state.TotalDailyMinutes,
 		localStartTime:  time.Now().UTC(),
+		bootTime:        state.LastBootTime,
 		httpClient:      &http.Client{Timeout: 25 * time.Second},
 		stopChan:        make(chan struct{}),
 	}
 }
 
+
+// Run starts the heartbeat loop. This is a blocking call.
+// Designed to be run as the main goroutine of the agent service.
 func (r *Runner) Run() {
+	// Clean up journal files older than 7 days (matches Python behaviour)
 	journal.CleanOldEntries(7)
+
+	// Ensure authenticated before starting
 	r.ensureAuth()
 
 	ticker := time.NewTicker(heartbeatInterval)
+	// Track process usage every 5 seconds in the background
 	procTicker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	defer procTicker.Stop()
 
-	log.Printf("[HEARTBEAT] v%s Loop started (30s heartbeat, 5s tick)", config.AgentVersion)
+	log.Printf("[HEARTBEAT] Loop started. Interval: %s", heartbeatInterval)
+
+	// Watchdog: restart stuck heartbeat if it hasn't fired in 3x interval
+	go r.watchdog()
 
 	for {
 		select {
 		case <-procTicker.C:
-			r.tick()
+			r.tracker.Tick()
+			r.updateLocalMetricsCache()
+
 		case <-ticker.C:
+			r.lastBeat = time.Now()
 			r.beat()
+
 		case <-r.stopChan:
-			log.Println("[HEARTBEAT] Stopping runner gracefully...")
+			log.Println("[HEARTBEAT] Stop signal received. Performing last-breath heartbeat...")
 			r.statusBeat("offline")
-			// One final tick to save last seconds
-			r.tick()
 			return
 		}
 	}
 }
 
-func (r *Runner) Stop() {
-	close(r.stopChan)
-}
-
-func (r *Runner) tick() {
-	now := time.Now().UTC()
-	elapsed := int(now.Sub(r.localStartTime).Seconds())
-	if elapsed <= 0 {
-		return
-	}
-
-	today := now.Format("2006-01-02")
-
-	// Midnight check
-	lastDate := persistence.GetState("last_date")
-	if lastDate != "" && lastDate != today {
-		log.Printf("[HEARTBEAT] Midnight rollover (%s -> %s). Resetting daily metrics.", lastDate, today)
-		persistence.ClearDailyData()
-		r.storedDailySecs = 0
-		persistence.SetState("total_daily_secs", "0")
-		r.mu.Lock()
-		r.cumulativeApps = make(telemetry.AppUsageMap)
-		r.heartbeatDelta = make(telemetry.AppUsageMap)
-		r.mu.Unlock()
-		newStart := now.Format(time.RFC3339)
-		r.startTime = now
-		persistence.SetState("first_start_time", newStart)
-		persistence.SetState("last_date", today)
-	}
-
-	// Update with REAL elapsed time
-	r.storedDailySecs += elapsed
-	r.localStartTime = now
-
-	// App Tracking
-	activeApp := telemetry.GetForegroundWindowName()
-	if activeApp != "" {
-		delta := map[string]int{activeApp: elapsed}
-		persistence.UpdateAppUsage(today, delta)
-
-		r.mu.Lock()
-		r.heartbeatDelta[activeApp] += elapsed
-		r.cumulativeApps[activeApp] += elapsed
-		r.mu.Unlock()
-	}
-
-	persistence.SetState("total_daily_secs", strconv.Itoa(r.storedDailySecs))
-	r.updateLocalMetricsCache(today)
-}
-
-func (r *Runner) updateLocalMetricsCache(today string) {
-	// Push latest totals to UI cache
-	r.mu.Lock()
-	data, _ := json.Marshal(r.cumulativeApps)
-	r.mu.Unlock()
-	persistence.SetConfig("metrics_cache", string(data))
-}
-
+// beat performs a single heartbeat cycle.
 func (r *Runner) beat() {
+	// Re-authenticate if token is stale
 	if !auth.IsTokenValid(r.cfg) {
 		r.ensureAuth()
 	}
 
-	snap, _ := telemetry.Collect()
+	snap, err := telemetry.Collect()
+	if err != nil {
+		log.Printf("[HEARTBEAT] Telemetry error: %v", err)
+	}
+
 	now := time.Now().UTC()
+	runtimeMins := r.storedDailyMins + int(now.Sub(r.localStartTime).Minutes())
 
-	r.mu.Lock()
-	currentHBUsage := r.heartbeatDelta
-	r.heartbeatDelta = make(telemetry.AppUsageMap) // Reset for next 30s
-	r.mu.Unlock()
+	appUsage := r.tracker.Snapshot() // delta snapshot (resets counter)
 
-	filteredDelta := r.filterAndCap(currentHBUsage)
-	runtimeMins := float64(r.storedDailySecs) / 60.0
+	// Add delta to the daily cumulative tracker for the GUI
+	for k, v := range appUsage {
+		r.cumulativeApps[k] += v
+	}
+
+	// Inject real-time CPU load for dashboard live display (mirrors Python agent)
+	appUsage["__current_cpu__"] = int(snap.CPUPercent)
 
 	payload := Payload{
 		HardwareID:     r.cfg.HardwareID,
@@ -217,40 +161,95 @@ func (r *Runner) beat() {
 		RuntimeMinutes: runtimeMins,
 		SessionStart:   r.startTime.Format(time.RFC3339),
 		LastActive:     now.Format(time.RFC3339),
-		AppUsage:       filteredDelta,
+		AppUsage:       appUsage,
 		IsDelta:        true,
+		Specs:          snap.Specs,
 	}
 
 	resp, err := r.sendHeartbeat(payload)
 	if err != nil {
-		journal.Store(r.cfg, snap, filteredDelta, now, int(runtimeMins))
+		log.Printf("[HEARTBEAT] Send error (offline): %v", err)
+		// Journal this heartbeat for later sync
+		journal.Store(r.cfg, snap, appUsage, now, runtimeMins)
 		return
 	}
 
-	if resp.LatestVersion != "" && resp.LatestVersion != config.AgentVersion && !r.isUpdating {
-		r.isUpdating = true
-		go updater.Update(r.cfg, resp.LatestVersion, resp.LatestHash, r.IsService)
+
+	// --- SELF-DESTRUCT MECHANISM ---
+	// If the server rejects the system (row deleted from DB)
+	if resp != nil && resp.Status == "unregistered" {
+		log.Println("[HEARTBEAT] Server reported UNREGISTERED. Commencing background self-destruct.")
+		// 1. Remove the background service so it never runs again
+		_ = exec.Command("sc", "stop", config.ServiceName).Run()
+		_ = exec.Command("sc", "delete", config.ServiceName).Run()
+		// 2. Wipe the program data directory (destroys tokens, logs, config)
+		_ = os.RemoveAll(config.AppDataDir)
+		// 3. Forcibly close the GUI if it is open (since it's a separate process)
+		_ = exec.Command("taskkill", "/F", "/IM", "agent.exe").Run()
+		// 4. Terminate self
+		os.Exit(0)
 	}
 
-	if len(resp.Command) > 0 && string(resp.Command) != "null" {
+	// Sync any queued offline data
+	go journal.SyncPending(r.cfg)
+
+	// Handle C2 command if present
+	if resp.Command != nil && string(resp.Command) != "null" {
 		go commands.Execute(r.cfg, resp.Command)
 	}
 
-	journal.SyncPending(r.cfg)
+	// OTA update check
+	if resp.LatestVersion != "" && resp.LatestVersion != config.AgentVersion {
+		if r.isUpdating {
+			log.Printf("[UPDATER] Update to %s already in progress. Skipping trigger.", resp.LatestVersion)
+		} else {
+			log.Printf("[UPDATER] New version available: %s (current: %s)", resp.LatestVersion, config.AgentVersion)
+			r.isUpdating = true
+			go func() {
+				defer func() { r.isUpdating = false }()
+				updater.Update(r.cfg, resp.LatestVersion, resp.LatestHash)
+			}()
+		}
+	}
+
+	// Persist state locally after a successful cycle
+	r.SaveState()
 }
 
+// statusBeat performs a lightweight heartbeat with a specific status override (e.g., "offline").
 func (r *Runner) statusBeat(status string) {
+	snap, _ := telemetry.Collect()
+	now := time.Now().UTC()
 	payload := Payload{
-		HardwareID: r.cfg.HardwareID,
-		SystemID:   r.cfg.SystemID,
-		Status:     status,
-		LastActive: time.Now().UTC().Format(time.RFC3339),
+		HardwareID:     r.cfg.HardwareID,
+		SystemID:       r.cfg.SystemID,
+		District:       r.cfg.District,
+		Tehsil:         r.cfg.Tehsil,
+		LabName:        r.cfg.LabName,
+		PCName:         r.cfg.PCName,
+		Status:         status,
+		CPUScore:       snap.CPUPercent,
+		RuntimeMinutes: r.storedDailyMins + int(now.Sub(r.localStartTime).Minutes()),
+		SessionStart:   r.startTime.Format(time.RFC3339),
+		LastActive:     now.Format(time.RFC3339),
+		AppUsage:       make(telemetry.AppUsageMap),
+		IsDelta:        true,
 	}
 	_, _ = r.sendHeartbeat(payload)
 }
 
-func (r *Runner) sendHeartbeat(p Payload) (*Response, error) {
-	body, _ := json.Marshal(p)
+// Stop signals the heartbeat loop to exit and clean up.
+func (r *Runner) Stop() {
+	close(r.stopChan)
+}
+
+// sendHeartbeat marshals the payload and POST's it to the server.
+func (r *Runner) sendHeartbeat(payload Payload) (*Response, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal payload: %w", err)
+	}
+
 	req, err := http.NewRequest("POST", r.cfg.ServerURL+"/api/heartbeat", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -258,56 +257,82 @@ func (r *Runner) sendHeartbeat(p Payload) (*Response, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+r.cfg.AuthToken)
 
-	resp, err := r.httpClient.Do(req)
+	httpResp, err := r.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("http execute: %w", err)
 	}
-	defer resp.Body.Close()
+	defer httpResp.Body.Close()
 
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("heartbeat HTTP %d: %s", resp.StatusCode, string(body))
+	if httpResp.StatusCode >= 400 {
+		return nil, fmt.Errorf("server responded with status: %d", httpResp.StatusCode)
 	}
 
-	var hResp Response
-	if err := json.NewDecoder(resp.Body).Decode(&hResp); err != nil {
-		return nil, err
+	raw, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read body: %w", err)
 	}
-	return &hResp, nil
+
+	var resp Response
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, fmt.Errorf("unmarshal response: %w (%s)", err, string(raw))
+	}
+	
+	if resp.Status == "unregistered" {
+		log.Printf("[HEARTBEAT] Device unregistered by server. Initiating self-destruct...")
+		// Use CLI call to uninstall to avoid import cycle
+		exe, _ := os.Executable()
+		_ = exec.Command(exe, "--uninstall").Run()
+		_ = config.Wipe()
+		os.Exit(0)
+	}
+	return &resp, nil
 }
 
+// ensureAuth blocks until the device is successfully authenticated.
 func (r *Runner) ensureAuth() {
-	resp, err := auth.Authenticate(r.cfg)
-	if err == nil && resp.Status == "authorized" {
-		r.cfg.AuthToken = resp.Token
-		r.cfg.SystemID = resp.SystemID
-		persistence.SetConfig("auth_token", resp.Token)
-		persistence.SetConfig("system_id", resp.SystemID)
+	for {
+		resp, err := auth.Authenticate(r.cfg)
+		if err == nil && resp != nil && resp.Status == "authorized" {
+			return
+		}
+		if resp != nil && resp.Status == "unregistered" {
+			log.Printf("[AUTH] Device not registered. HID=%s — waiting 60s...", r.cfg.HardwareID)
+		} else {
+			log.Printf("[AUTH] Auth failed: %v — retrying in 30s...", err)
+		}
+		time.Sleep(30 * time.Second)
 	}
 }
 
-func (r *Runner) filterAndCap(usage telemetry.AppUsageMap) telemetry.AppUsageMap {
-	type kv struct {
-		K string
-		V int
-	}
-	var ss []kv
-	for k, v := range usage {
-		if v > 0 {
-			ss = append(ss, kv{k, v})
+// watchdog monitors the heartbeat loop and logs if it becomes unresponsive.
+// Mirrors Python's _watchdog thread that revives dead monitoring threads.
+func (r *Runner) watchdog() {
+	watchInterval := heartbeatInterval * 3 // alert if no beat in 90s
+	ticker := time.NewTicker(watchInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		if time.Since(r.lastBeat) > watchInterval {
+			log.Printf("[WATCHDOG] WARNING: No heartbeat in %v — possible stall detected", watchInterval)
 		}
 	}
-	sort.Slice(ss, func(i, j int) bool {
-		return ss[i].V > ss[j].V
-	})
+}
 
-	res := make(telemetry.AppUsageMap)
-	limit := 100
-	if len(ss) < limit {
-		limit = len(ss)
+// updateLocalMetricsCache dumps the live total usage to a local cache file.
+// This acts as the IPC bridge so the unprivileged GUI can read the service's tracking state.
+func (r *Runner) updateLocalMetricsCache() {
+	current := r.tracker.PeekUsage()
+	display := make(map[string]int)
+	
+	// Add fully completed intervals
+	for k, v := range r.cumulativeApps {
+		display[k] = v
 	}
-	for i := 0; i < limit; i++ {
-		res[ss[i].K] = ss[i].V
+	// Add current un-snapshotted interval
+	for k, v := range current {
+		display[k] += v
 	}
-	return res
+	
+	if data, err := json.Marshal(display); err == nil {
+		_ = os.WriteFile(config.MetricsCacheFile, data, 0o644)
+	}
 }

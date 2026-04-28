@@ -13,7 +13,7 @@ import (
 // ShowAuthDialog mimics the original Python auth logic.
 // It displays a simple window locking the UI until the HWID is verified against Supabase.
 func ShowAuthDialog(cfg *config.Config) bool {
-	var dlg *walk.Dialog
+	var mw *walk.MainWindow
 	var lblMsg *walk.Label
 	
 	authenticated := false
@@ -23,10 +23,11 @@ func ShowAuthDialog(cfg *config.Config) bool {
 		return true // already authorized, skip dialog
 	}
 
-	code, err := Dialog{
-		AssignTo: &dlg,
+	err := MainWindow{
+		AssignTo: &mw,
 		Title:    "Lab Guardian Pro | Agent Authentication",
 		MinSize:  Size{Width: 500, Height: 300},
+		Size:     Size{Width: 500, Height: 300},
 		Layout:   VBox{Margins: Margins{20, 20, 20, 20}, Spacing: 15},
 		Background: SolidColorBrush{Color: walk.RGB(15, 15, 15)},
 		Children: []Widget{
@@ -52,12 +53,12 @@ func ShowAuthDialog(cfg *config.Config) bool {
 			VSpacer{Size: 10},
 			Label{
 				Text:      "HID: " + cfg.HardwareID,
-				Font:      Font{Family: "Consolas", PointSize: 12, Bold: true},
-				TextColor: walk.RGB(255, 255, 0), // Bright yellow for visibility
+				Font:      Font{Family: "Segoe UI", PointSize: 10},
+				TextColor: walk.RGB(220, 220, 220),
 				Alignment: AlignHCenterVNear,
 			},
 			PushButton{
-				Text: "Copy Hardware ID (Check Supabase Match)",
+				Text: "Copy HID",
 				Font: Font{PointSize: 10},
 				OnClicked: func() {
 					walk.Clipboard().SetText(cfg.HardwareID)
@@ -66,47 +67,40 @@ func ShowAuthDialog(cfg *config.Config) bool {
 			VSpacer{Size: 15},
 			Label{
 				AssignTo:  &lblMsg,
-				Text:      "System Standby - Verification Required",
-				Font:      Font{PointSize: 10, Bold: true},
-				TextColor: walk.RGB(150, 150, 150),
+				Text:      "",
+				Font:      Font{PointSize: 9, Bold: true},
+				TextColor: walk.RGB(255, 100, 100),
 				Alignment: AlignHCenterVNear,
 			},
 			PushButton{
 				Text: "Authenticate System",
 				Font: Font{PointSize: 12, Bold: true},
-				MinSize: Size{Height: 45},
+				MinSize: Size{Height: 40},
 				OnClicked: func() {
 					lblMsg.SetText("Verifying...")
-					lblMsg.SetTextColor(walk.RGB(200, 200, 0))
 					go func() {
 						resp, err := auth.Authenticate(cfg)
-						dlg.Synchronize(func() {
+						mw.Synchronize(func() {
 							if err != nil {
-								lblMsg.SetText("Error: Server Offline or API Timeout")
-								lblMsg.SetTextColor(walk.RGB(255, 50, 50))
+								lblMsg.SetText("Error: Server Offline or Unreachable")
 							} else if resp != nil && resp.Status == "authorized" {
 								authenticated = true
-								dlg.Accept()
+								mw.Close()
 							} else {
-								lblMsg.SetText("Access Denied: HID NOT FOUND! Check for typos in Supabase.")
-								lblMsg.SetTextColor(walk.RGB(255, 50, 50))
+								lblMsg.SetText("Access Denied: HID not found in database.")
 							}
 						})
 					}()
 				},
 			},
 		},
-	}.Run(nil)
-	_ = code
+	}.Create()
 
-	if err != nil && err != walk.ErrInvalidType {
-		log.Printf("[AUTH GUI] Dialog error: %v", err)
+	if err != nil {
+		log.Printf("[AUTH GUI] Creation error: %v", err)
 		return false
 	}
 
+	mw.Run()
 	return authenticated
-}
-
-func ShowFatalError(title string, err error) {
-	walk.MsgBox(nil, "Lab Guardian - FATAL ERROR", title+":\n"+err.Error(), walk.MsgBoxIconError)
 }

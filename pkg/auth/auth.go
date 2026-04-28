@@ -1,181 +1,149 @@
+// Package auth handles hardware identity generation and JWT authentication.
+// Hardware ID is extracted via WMI from the motherboard UUID — the exact same
+// approach as the Python agent, ensuring backwards compatibility with existing
+// registered devices in the Supabase database.
+//
+// Build constraint: Windows only (uses WMI and registry APIs).
+//go:build windows
+
 package auth
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"net"
+	"io"
+	"log"
 	"net/http"
-	"os"
-	"runtime"
+	"os/exec"
 	"strings"
 	"time"
 
 	"labguardian/agent/pkg/config"
-	"labguardian/agent/pkg/persistence"
-
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/host"
-	"github.com/shirou/gopsutil/v3/mem"
-	"github.com/yusufpapurcu/wmi"
 )
 
-type Win32_ComputerSystemProduct struct {
-	UUID string
-}
+// ---------------------------------------------------------------
+// Hardware ID
+// ---------------------------------------------------------------
 
-type AuthPayload struct {
-	HardwareID string                 `json:"hardware_id"`
-	Specs      map[string]interface{} `json:"specs"`
-}
-
-type AuthResponse struct {
-	Status   string `json:"status"`
-	Token    string `json:"token"`
-	SystemID string `json:"system_id"`
-	District string `json:"city"`
-	Tehsil   string `json:"tehsil"`
-	LabName  string `json:"lab_name"`
-	PCName   string `json:"pc_name"`
-	Location *struct {
-		District string `json:"city"`
-		Tehsil   string `json:"tehsil"`
-		LabName  string `json:"lab_name"`
-	} `json:"location"`
-}
-
-// GetHardwareID returns the motherboard UUID via native WMI.
+// GetHardwareID returns the motherboard UUID via WMI, matching the Python agent's method.
+// We use a PowerShell subprocess to query WMI, which works on all Windows versions
+// without requiring CGo or external libraries.
 func GetHardwareID() (string, error) {
-	var dst []Win32_ComputerSystemProduct
-	q := wmi.CreateQuery(&dst, "")
-	if err := wmi.Query(q, &dst); err != nil {
+	// Query the same WMI class the Python agent uses: Win32_ComputerSystemProduct.UUID
+	cmd := exec.Command("powershell", "-NoProfile", "-Command",
+		"(Get-WMIObject -Class Win32_ComputerSystemProduct).UUID")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("wmi query failed: %w", err)
+	}
+	uid := strings.TrimSpace(string(out))
+	if uid == "" || uid == "00000000-0000-0000-0000-000000000000" {
+		// Fallback: use hostname + MAC address as HWID
 		return fallbackHWID()
 	}
-
-	if len(dst) == 0 || dst[0].UUID == "" || dst[0].UUID == "00000000-0000-0000-0000-000000000000" {
-		return fallbackHWID()
-	}
-
-	return dst[0].UUID, nil
+	return uid, nil
 }
 
+// fallbackHWID constructs a machine-unique ID when WMI UUID is unavailable.
 func fallbackHWID() (string, error) {
-	interfaces, err := net.Interfaces()
+	cmd := exec.Command("powershell", "-NoProfile", "-Command",
+		"(Get-WMIObject -Class Win32_NetworkAdapterConfiguration | Where-Object { $_.MACAddress } | Select-Object -First 1).MACAddress")
+	out, err := cmd.Output()
 	if err != nil {
 		return "UNKNOWN-HWID", nil
 	}
-	for _, i := range interfaces {
-		if i.Flags&net.FlagLoopback == 0 && len(i.HardwareAddr) > 0 {
-			mac := strings.ReplaceAll(i.HardwareAddr.String(), ":", "")
-			return "MAC-" + strings.ToUpper(mac), nil
-		}
-	}
-	return "UNKNOWN-HWID", nil
+	mac := strings.ReplaceAll(strings.TrimSpace(string(out)), ":", "")
+	return "MAC-" + mac, nil
 }
 
-func LoadFromDB(cfg *config.Config) {
-	dbURL := persistence.GetConfig("server_url")
-	if dbURL != "" {
-		cfg.ServerURL = dbURL
-	}
-	cfg.AuthToken = persistence.GetConfig("auth_token")
-	cfg.SystemID = persistence.GetConfig("system_id")
-	cfg.District = persistence.GetConfig("city")
-	cfg.Tehsil = persistence.GetConfig("tehsil")
-	cfg.LabName = persistence.GetConfig("lab_name")
-	cfg.PCName = persistence.GetConfig("pc_name")
+// ---------------------------------------------------------------
+// JWT Authentication
+// ---------------------------------------------------------------
+
+// AuthRequest is the payload sent to POST /api/auth.
+type AuthRequest struct {
+	HardwareID string `json:"hardware_id"`
+	District   string `json:"city,omitempty"`
+	Tehsil     string `json:"tehsil,omitempty"`
+	LabName    string `json:"lab_name,omitempty"`
+	PCName     string `json:"pc_name,omitempty"`
 }
 
+// AuthResponse is the server's response from POST /api/auth.
+type AuthResponse struct {
+	Status     string `json:"status"`
+	Token      string `json:"token"`
+	SystemID   string `json:"system_id"`
+	District   string `json:"city"`
+	Tehsil     string `json:"tehsil"`
+	LabName    string `json:"lab_name"`
+	PCName     string `json:"pc_name"`
+	Message    string `json:"message"`
+	HardwareID string `json:"hardware_id"`
+}
+
+// Authenticate calls POST /api/auth with the device's hardware ID.
+// On success it stores the JWT token in config.json.
+// Returns the full AuthResponse for the caller to inspect status.
 func Authenticate(cfg *config.Config) (*AuthResponse, error) {
-	specs := getNativeSpecs()
-	payload := AuthPayload{
+	payload := AuthRequest{
 		HardwareID: cfg.HardwareID,
-		Specs:      specs,
+		District:   cfg.District,
+		Tehsil:     cfg.Tehsil,
+		LabName:    cfg.LabName,
+		PCName:     cfg.PCName,
 	}
 
 	body, _ := json.Marshal(payload)
+	client := &http.Client{Timeout: 20 * time.Second}
 	req, err := http.NewRequest("POST", cfg.ServerURL+"/api/auth", bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create auth request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("auth request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	var authResp AuthResponse
-	if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
-		return nil, err
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("server responded with status: %d", resp.StatusCode)
 	}
 
-	if authResp.Status == "authorized" {
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read auth body: %w", err)
+	}
+
+	var authResp AuthResponse
+	if err := json.Unmarshal(raw, &authResp); err != nil {
+		return nil, fmt.Errorf("parse auth response: %w (%s)", err, string(raw))
+	}
+
+	if authResp.Status == "authorized" && authResp.Token != "" {
 		cfg.AuthToken = authResp.Token
 		cfg.SystemID = authResp.SystemID
-		if authResp.PCName != "" {
-			cfg.PCName = authResp.PCName
-			persistence.SetConfig("pc_name", authResp.PCName)
+		cfg.TokenExpiry = time.Now().Add(23 * time.Hour).Format(time.RFC3339)
+		if err := config.Save(cfg); err != nil {
+			log.Printf("[AUTH] Warning: could not save token: %v", err)
 		}
-
-		persistence.SetConfig("auth_token", authResp.Token)
-		persistence.SetConfig("system_id", authResp.SystemID)
-
-		// Support both legacy nested response and current flat response.
-		district := authResp.District
-		tehsil := authResp.Tehsil
-		labName := authResp.LabName
-		if authResp.Location != nil {
-			if authResp.Location.District != "" {
-				district = authResp.Location.District
-			}
-			if authResp.Location.Tehsil != "" {
-				tehsil = authResp.Location.Tehsil
-			}
-			if authResp.Location.LabName != "" {
-				labName = authResp.Location.LabName
-			}
-		}
-
-		if district != "" {
-			cfg.District = district
-			persistence.SetConfig("city", district)
-		}
-		if tehsil != "" {
-			cfg.Tehsil = tehsil
-			persistence.SetConfig("tehsil", tehsil)
-		}
-		if labName != "" {
-			cfg.LabName = labName
-			persistence.SetConfig("lab_name", labName)
-		}
+		log.Printf("[AUTH] Authorized. System ID: %s", cfg.SystemID)
 	}
 
 	return &authResp, nil
 }
 
+// IsTokenValid checks whether the stored JWT token is still within its validity window.
 func IsTokenValid(cfg *config.Config) bool {
-	return cfg.AuthToken != ""
-}
-
-func getNativeSpecs() map[string]interface{} {
-	hostname, _ := os.Hostname()
-	v, _ := mem.VirtualMemory()
-	c, _ := cpu.Info()
-	h, _ := host.Info()
-
-	cpuName := "Unknown CPU"
-	if len(c) > 0 {
-		cpuName = c[0].ModelName
+	if cfg.AuthToken == "" || cfg.TokenExpiry == "" {
+		return false
 	}
-
-	return map[string]interface{}{
-		"os":       fmt.Sprintf("%s %s", h.OS, h.PlatformVersion),
-		"hostname": hostname,
-		"cpu":      cpuName,
-		"ram_gb":   v.Total / (1024 * 1024 * 1024),
-		"arch":     runtime.GOARCH,
+	expiry, err := time.Parse(time.RFC3339, cfg.TokenExpiry)
+	if err != nil {
+		return false
 	}
+	return time.Now().Before(expiry)
 }
