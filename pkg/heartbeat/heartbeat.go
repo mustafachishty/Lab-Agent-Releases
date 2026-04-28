@@ -29,28 +29,90 @@ const heartbeatInterval = 30 * time.Second
 type Payload struct {
 	HardwareID     string                  `json:"hardware_id"`
 	SystemID       string                  `json:"system_id"`
-	District       string                  `json:"city"`
-	Tehsil         string                  `json:"tehsil"`
-	LabName        string                  `json:"lab_name"`
-	PCName         string                  `json:"pc_name"`
 	Status         string                  `json:"status"`
+	Version        string                  `json:"version"`
+	PendingLogs    int                     `json:"pending_logs"`
 	CPUScore       float64                 `json:"cpu_score"`
 	RuntimeMinutes int                     `json:"runtime_minutes"`
-	SessionStart   string                  `json:"session_start"`
 	LastActive     string                  `json:"last_active"`
-	AppUsage       telemetry.AppUsageMap   `json:"app_usage"`
-	IsDelta        bool                    `json:"is_delta"`
-	Specs          map[string]interface{}  `json:"specs"`
+}
+
+func StartHeartbeat(cfg *config.Config) {
+	for {
+		beat(cfg)
+		time.Sleep(30 * time.Second)
+	}
+}
+
+func beat(cfg *config.Config) {
+	snap, _ := telemetry.Collect()
+	
+	// Count pending records in SQLite
+	var pendingCount int
+	db.DB.QueryRow("SELECT COUNT(*) FROM sync_queue").Scan(&pendingCount)
+
+	payload := Payload{
+		HardwareID:  cfg.HardwareID,
+		SystemID:    cfg.SystemID,
+		Status:      "online",
+		Version:     config.AgentVersion,
+		PendingLogs: pendingCount,
+		CPUScore:    snap.CPUPercent,
+		LastActive:  time.Now().Format(time.RFC3339),
+	}
+
+	resp, err := sendHeartbeat(cfg, payload)
+	if err != nil {
+		return
+	}
+
+	// Handle Remote Commands (C2)
+	if resp.Command != nil && string(resp.Command) != "null" {
+		var cmd struct {
+			ID      string `json:"id"`
+			Command string `json:"cmd"`
+		}
+		if err := json.Unmarshal(resp.Command, &cmd); err == nil {
+			executeCommand(cmd.Command)
+		}
+	}
+}
+
+func executeCommand(cmd string) {
+	log.Printf("[C2] Executing remote command: %s", cmd)
+	switch cmd {
+	case "restart":
+		exec.Command("powershell", "-Command", "Restart-Service LabGuardianAgent").Run()
+	}
 }
 
 // Response is the JSON returned from POST /api/heartbeat.
 type Response struct {
 	Status        string          `json:"status"`
 	SystemID      string          `json:"system_id"`
-	ServerTime    string          `json:"server_time"`
 	LatestVersion string          `json:"latest_version"`
 	LatestHash    string          `json:"latest_hash"`
 	Command       json.RawMessage `json:"command"`
+}
+
+func sendHeartbeat(cfg *config.Config, payload Payload) (*Response, error) {
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequest("POST", cfg.ServerURL+"/api/heartbeat", bytes.NewReader(body))
+	if err != nil { return nil, err }
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+cfg.AuthToken)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil { return nil, err }
+	defer resp.Body.Close()
+
+	var r Response
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
 
 // Runner manages the heartbeat loop state.

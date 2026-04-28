@@ -19,8 +19,11 @@ import (
 
 	"labguardian/agent/pkg/auth"
 	"labguardian/agent/pkg/config"
+	"labguardian/agent/pkg/db"
 	"labguardian/agent/pkg/gui"
+	"labguardian/agent/pkg/heartbeat"
 	"labguardian/agent/pkg/service"
+	"labguardian/agent/pkg/sync"
 )
 
 func main() {
@@ -28,6 +31,9 @@ func main() {
 	if err := config.EnsureDirectories(); err != nil {
 		log.Printf("[INIT] Warning: could not create data dirs: %v", err)
 	}
+
+	// Initialize SQLite Database (Hardened Persistence)
+	db.InitDB()
 
 	flag := ""
 	if len(os.Args) > 1 {
@@ -107,7 +113,12 @@ func main() {
 			}
 		}
 
-		// Step 5: Open the management GUI.
+		// Step 5: Start the Supervisor with all core services
+		go service.SafeRun("AppTracker", service.StartTracking)
+		go service.SafeRun("SyncEngine", func() { sync.StartSyncWorker(cfg) })
+		go service.SafeRun("Heartbeat", func() { heartbeat.StartHeartbeat(cfg) })
+
+		// Step 6: Open the management GUI (Main Thread)
 		gui.RunGUI(cfg)
 	}
 }
